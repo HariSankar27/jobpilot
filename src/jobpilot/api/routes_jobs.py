@@ -45,7 +45,7 @@ async def create_jobs(payload: CreateJobRequest) -> list[dict]:
     results = []
     async with async_session() as session:
         for posting in postings:
-            job = await upsert_job(session, posting)
+            job, _ = await upsert_job(session, posting)
             parsed = await parse_job({"job_text": job.description_text})
             requirements = [Requirement(**r) for r in parsed["requirements"]]
             await replace_requirements(session, job.id, requirements)

@@ -1,19 +1,25 @@
 import asyncio
 import uuid
+from pathlib import Path
 
 import typer
+import yaml
 from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 from sqlalchemy import select
 
 from .cost import cost_usd
-from .db.repo import import_facts
+from .db.repo import import_facts, upsert_job
 from .db.session import async_session
 from .db.tables import FactRow, JobRow, TailorRunRow
-from .domain.models import Fact
+from .domain.models import Fact, Requirement
 from .domain.profile import load_facts
+from .domain.tracker import coverage
 from .graph.build import build_graph
+from .graph.nodes import parse_job
+from .ingest.greenhouse import fetch_greenhouse
+from .ingest.lever import fetch_lever
 
 app = typer.Typer()
 profile_app = typer.Typer()
@@ -104,6 +110,55 @@ def tailor(job_id: str) -> None:
             await session.commit()
 
         typer.echo(f"Resume written to {result['pdf_path']}")
+
+    asyncio.run(_run())
+
+
+@app.command()
+def watch(boards_path: str = "profile/boards.yaml", min_coverage: float = 0.5) -> None:
+    async def _run() -> None:
+        config = yaml.safe_load(Path(boards_path).read_text()) or {}
+
+        async with async_session() as session:
+            fact_rows = (await session.execute(select(FactRow))).scalars().all()
+        facts = [
+            Fact(
+                id=r.id,
+                kind=r.kind,
+                org=r.org,
+                role=r.role,
+                text=r.text,
+                skills=r.skills,
+                metrics=r.metrics,
+            )
+            for r in fact_rows
+        ]
+
+        postings = []
+        for board in config.get("greenhouse", []):
+            postings += await fetch_greenhouse(board)
+        for site in config.get("lever", []):
+            postings += await fetch_lever(site)
+
+        new_jobs = []
+        async with async_session() as session:
+            for posting in postings:
+                job, created = await upsert_job(session, posting)
+                if created:
+                    new_jobs.append(job)
+            await session.commit()
+
+        if not new_jobs:
+            typer.echo("No new postings.")
+            return
+
+        # ponytail: coverage only, no rubric LLM call - keeps a routine sweep free
+        for job in new_jobs:
+            parsed = await parse_job({"job_text": job.description_text})
+            requirements = [Requirement(**r) for r in parsed["requirements"]]
+            score, _ = coverage(requirements, facts)
+            if score >= min_coverage:
+                typer.echo(f"[{score:.0%}] {job.company} — {job.title}: {job.url}")
 
     asyncio.run(_run())
 

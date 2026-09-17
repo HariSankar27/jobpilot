@@ -7,6 +7,7 @@ from sqlalchemy import text
 from ..db.session import engine
 from ..graph.build import build_graph
 from ..settings import settings
+from .routes_apps import router as apps_router
 from .routes_jobs import router as jobs_router
 from .routes_tailor import router as tailor_router
 
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="jobpilot", lifespan=lifespan)
 app.include_router(jobs_router)
 app.include_router(tailor_router)
+app.include_router(apps_router)
 
 
 @app.get("/healthz")

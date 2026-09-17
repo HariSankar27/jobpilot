@@ -6,6 +6,7 @@ from fastapi.templating import Jinja2Templates
 from langgraph.types import Command
 from sqlalchemy import select
 
+from ..db.repo import create_resume_version
 from ..db.session import async_session
 from ..db.tables import FactRow, JobRow, TailorRunRow
 from ..domain.models import Fact, ReviewDecision
@@ -104,11 +105,19 @@ async def submit_review(run_id: str, decisions: list[ReviewDecision], request: R
     result = await graph.ainvoke(Command(resume=[d.model_dump() for d in decisions]), config)
     snapshot = await graph.aget_state(config)
 
+    resume_version_id = None
     if not snapshot.next:
         async with async_session() as session:
             run = await session.get(TailorRunRow, run_id)
             if run is not None:
                 run.status = "completed"
-                await session.commit()
+            if result.get("pdf_path"):
+                version = await create_resume_version(session, run_id, result["pdf_path"])
+                resume_version_id = version.id
+            await session.commit()
 
-    return {"needs_review": bool(snapshot.interrupts), "pdf_path": result.get("pdf_path")}
+    return {
+        "needs_review": bool(snapshot.interrupts),
+        "pdf_path": result.get("pdf_path"),
+        "resume_version_id": resume_version_id,
+    }

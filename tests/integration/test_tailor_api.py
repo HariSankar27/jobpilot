@@ -88,7 +88,7 @@ async def test_run_survives_restart_and_resumes_with_ordered_pdf(tmp_path, monke
         content_hash="hash-restart-test",
     )
     async with async_session() as session:
-        job = await upsert_job(session, posting)
+        job, _ = await upsert_job(session, posting)
         job_id = job.id
         await session.commit()
 
