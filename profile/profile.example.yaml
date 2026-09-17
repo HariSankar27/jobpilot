@@ -1,0 +1,43 @@
+candidate:
+  name: Asha Rao
+  headline: GenAI Engineer
+facts:
+  - id: F001
+    kind: achievement
+    org: Northwind Analytics
+    role: ML Engineer
+    text: Built a supervisor-agent system that routes support tickets across 4 specialist agents
+    skills: [langgraph, python, multi-agent]
+    metrics: ["4 specialist agents"]
+  - id: F002
+    kind: achievement
+    org: Northwind Analytics
+    role: ML Engineer
+    text: Cut document triage time from 3 days to 4 hours with an extraction pipeline
+    skills: [python, azure-openai, pydantic]
+    metrics: ["3 days", "4 hours"]
+  - id: F003
+    kind: responsibility
+    org: Northwind Analytics
+    role: ML Engineer
+    text: Owned the on-call rotation for the ticket-routing service, a FastAPI app deployed on Kubernetes
+    skills: [fastapi, kubernetes]
+    metrics: []
+  - id: F004
+    kind: skill
+    text: Comfortable building retrieval-augmented generation pipelines with pgvector and LangChain
+    skills: [python, llm]
+    metrics: []
+  - id: F005
+    kind: education
+    org: State University
+    role: B.S. Computer Science
+    text: Graduated with a B.S. in Computer Science, focus on distributed systems
+    skills: []
+    metrics: []
+  - id: F006
+    kind: certification
+    org: Google Cloud
+    text: Google Cloud Professional Machine Learning Engineer
+    skills: [google-cloud]
+    metrics: []
