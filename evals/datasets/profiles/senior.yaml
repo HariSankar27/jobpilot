@@ -1,0 +1,44 @@
+candidate:
+  name: Priya Nandan
+  headline: Staff Machine Learning Engineer
+facts:
+  - id: F001
+    kind: achievement
+    org: Vantage Robotics
+    role: Staff ML Engineer
+    text: Led a team of 8 engineers that rebuilt the fraud-detection platform on kubernetes
+    skills: [kubernetes, python, leadership]
+    metrics: ["8 engineers"]
+  - id: F002
+    kind: achievement
+    org: Vantage Robotics
+    role: Staff ML Engineer
+    text: Cut model serving latency from 400ms to 60ms by moving inference to google-cloud
+    skills: [google-cloud, python]
+    metrics: ["400ms", "60ms"]
+  - id: F003
+    kind: achievement
+    org: Vantage Robotics
+    role: Staff ML Engineer
+    text: Designed a multi-agent architecture with langgraph that cut manual review by 70%
+    skills: [langgraph, multi-agent]
+    metrics: ["70%"]
+  - id: F004
+    kind: responsibility
+    org: Vantage Robotics
+    role: Staff ML Engineer
+    text: Set the technical roadmap for a 12-person ML platform team
+    skills: [leadership]
+    metrics: ["12-person"]
+  - id: F005
+    kind: skill
+    text: Deep experience with fastapi services backed by kubernetes and azure-openai
+    skills: [fastapi, kubernetes, azure-openai]
+    metrics: []
+  - id: F006
+    kind: education
+    org: State University
+    role: M.S. Computer Science
+    text: Earned an M.S. in Computer Science, thesis on distributed inference
+    skills: []
+    metrics: []

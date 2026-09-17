@@ -1,0 +1,30 @@
+candidate:
+  name: Jordan Lee
+  headline: Junior Software Engineer
+facts:
+  - id: F001
+    kind: achievement
+    org: BrightPath Software
+    role: Junior Engineer
+    text: Fixed 25 bugs in the billing service during a 3-month internship
+    skills: [python]
+    metrics: ["25 bugs", "3-month"]
+  - id: F002
+    kind: skill
+    text: Comfortable writing unit tests with pytest
+    skills: [python]
+    metrics: []
+  - id: F003
+    kind: education
+    org: State University
+    role: B.S. Computer Science
+    text: Graduated with a B.S. in Computer Science
+    skills: []
+    metrics: []
+  - id: F004
+    kind: responsibility
+    org: BrightPath Software
+    role: Junior Engineer
+    text: Wrote a FastAPI endpoint that reduced manual data entry
+    skills: [fastapi, python]
+    metrics: []
