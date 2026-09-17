@@ -6,5 +6,6 @@ profile/profile.yaml
 .pytest_cache/
 .ruff_cache/
 evals/results/
+var/
 *.pdf
 .coverage

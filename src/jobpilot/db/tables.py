@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import Float, ForeignKey, String
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,3 +48,13 @@ class RequirementRow(Base):
     source_quote: Mapped[str] = mapped_column(String, nullable=False)
 
     job: Mapped[JobRow] = relationship(back_populates="requirements")
+
+
+class TailorRunRow(Base):
+    __tablename__ = "tailor_runs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)  # == LangGraph thread_id
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    trace_id: Mapped[str] = mapped_column(String, nullable=False)
+    cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
