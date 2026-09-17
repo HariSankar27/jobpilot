@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+profile/profile.yaml
+.pytest_cache/
+.ruff_cache/
+evals/results/
+*.pdf
+.coverage
