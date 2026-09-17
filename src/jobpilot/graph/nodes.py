@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from langgraph.types import interrupt
 from pydantic import BaseModel
 
 from ..domain.models import Bullet, CheckFailure, Fact, Requirement, VerificationResult
@@ -64,22 +65,22 @@ async def write_bullets(state: TailorState) -> dict:
     return {"bullets": [b.model_dump() for b in draft.bullets]}
 
 
+async def verify_bullet(bullet: Bullet, facts: dict[str, Fact]) -> VerificationResult:
+    failures = deterministic_checks(bullet, facts)
+    if not failures:
+        verdict = await judge_support(bullet.text, [facts[i].text for i in bullet.evidence_ids])
+        if verdict.verdict != "supported":
+            failures.append(CheckFailure(check="not_supported", detail=verdict.reason))
+    return VerificationResult(bullet_id=bullet.id, passed=not failures, failures=failures)
+
+
 async def verify_claims(state: TailorState) -> dict:
     facts = {f["id"]: Fact(**f) for f in state["facts"]}
-    results = []
-    for raw in state["bullets"]:
-        bullet = Bullet(**raw)
-        failures = deterministic_checks(bullet, facts)
-        if not failures:
-            verdict = await judge_support(bullet.text, [facts[i].text for i in bullet.evidence_ids])
-            if verdict.verdict != "supported":
-                failures.append(CheckFailure(check="not_supported", detail=verdict.reason))
-        results.append(
-            VerificationResult(
-                bullet_id=bullet.id, passed=not failures, failures=failures
-            ).model_dump()
-        )
-    return {"verification": results, "attempts": state.get("attempts", 0) + 1}
+    results = [await verify_bullet(Bullet(**raw), facts) for raw in state["bullets"]]
+    return {
+        "verification": [r.model_dump() for r in results],
+        "attempts": state.get("attempts", 0) + 1,
+    }
 
 
 def route_after_verify(state: TailorState) -> str:
@@ -88,19 +89,52 @@ def route_after_verify(state: TailorState) -> str:
 
 
 def human_review(state: TailorState) -> dict:
-    # ponytail: auto-accepts every passing bullet until M4 wires a real interrupt()-based review.
-    decisions = [
-        {"bullet_id": v["bullet_id"], "action": "accept" if v["passed"] else "reject"}
-        for v in state["verification"]
-    ]
+    decisions = interrupt({"bullets": state["bullets"], "verification": state["verification"]})
     return {"review": decisions}
 
 
+async def apply_review(state: TailorState) -> dict:
+    # ponytail: re-verification runs here, not inside human_review, so a failing edit
+    # loops back through a conditional edge instead of retrying inside the node.
+    facts = {f["id"]: Fact(**f) for f in state["facts"]}
+    bullets_by_id = {b["id"]: dict(b) for b in state["bullets"]}
+    verification_by_id = {v["bullet_id"]: v for v in state["verification"]}
+
+    for decision in state["review"]:
+        if decision["action"] != "edit":
+            continue
+        bullet_id = decision["bullet_id"]
+        edited = Bullet(**{**bullets_by_id[bullet_id], "text": decision["edited_text"]})
+        bullets_by_id[bullet_id] = edited.model_dump()
+        verification_by_id[bullet_id] = (await verify_bullet(edited, facts)).model_dump()
+
+    return {
+        "bullets": list(bullets_by_id.values()),
+        "verification": list(verification_by_id.values()),
+    }
+
+
+def route_after_review(state: TailorState) -> str:
+    verification_by_id = {v["bullet_id"]: v for v in state["verification"]}
+    edited_ids = [d["bullet_id"] for d in state["review"] if d["action"] == "edit"]
+    still_failing = any(not verification_by_id[i]["passed"] for i in edited_ids)
+    return "human_review" if still_failing else "render_pdf"
+
+
 def render_pdf(state: TailorState) -> dict:
-    # ponytail: writes Markdown, not a PDF, until M4 adds the WeasyPrint renderer.
-    accepted = {d["bullet_id"] for d in state["review"] if d["action"] == "accept"}
-    bullets = [b["text"] for b in state["bullets"] if b["id"] in accepted]
-    out_path = Path("var/resumes") / f"{state['job_id']}.md"
+    from ..render.pdf import render_resume  # lazy: WeasyPrint needs system Pango libraries
+
+    verification_by_id = {v["bullet_id"]: v for v in state["verification"]}
+    accepted_ids = {
+        d["bullet_id"]
+        for d in state["review"]
+        if d["action"] == "accept"
+        or (d["action"] == "edit" and verification_by_id.get(d["bullet_id"], {}).get("passed"))
+    }
+    bullets_by_id = {b["id"]: b for b in state["bullets"]}
+    bullets = [bullets_by_id[i]["text"] for i in bullets_by_id if i in accepted_ids]
+
+    out_path = Path("var/resumes") / f"{state['job_id']}.pdf"
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text("\n".join(f"- {b}" for b in bullets))
+    render_resume({"name": "Candidate"}, bullets, str(out_path))
     return {"pdf_path": str(out_path)}

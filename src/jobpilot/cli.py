@@ -4,6 +4,7 @@ import uuid
 import typer
 from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import Command
 from sqlalchemy import select
 
 from .cost import cost_usd
@@ -57,6 +58,8 @@ def tailor(job_id: str) -> None:
         graph = build_graph(MemorySaver())
         thread_id = str(uuid.uuid4())
         callback = UsageMetadataCallbackHandler()
+        config = {"configurable": {"thread_id": thread_id}, "callbacks": [callback]}
+
         result = await graph.ainvoke(
             {
                 "job_id": job_id,
@@ -64,8 +67,29 @@ def tailor(job_id: str) -> None:
                 "facts": [f.model_dump() for f in facts],
                 "attempts": 0,
             },
-            config={"configurable": {"thread_id": thread_id}, "callbacks": [callback]},
+            config=config,
         )
+
+        snapshot = await graph.aget_state(config)
+        while snapshot.interrupts:
+            payload = snapshot.interrupts[0].value
+            verification_by_id = {v["bullet_id"]: v for v in payload["verification"]}
+            decisions = []
+            for bullet in payload["bullets"]:
+                verification = verification_by_id.get(bullet["id"], {})
+                passed = bool(verification.get("passed"))
+                typer.echo(f"[{'PASS' if passed else 'FAIL'}] {bullet['id']}: {bullet['text']}")
+                for failure in verification.get("failures", []):
+                    typer.echo(f"    - {failure['check']}: {failure['detail']}")
+                action = typer.prompt(
+                    "accept/edit/reject", default="accept" if passed else "reject"
+                )
+                edited_text = typer.prompt("New text") if action == "edit" else None
+                decisions.append(
+                    {"bullet_id": bullet["id"], "action": action, "edited_text": edited_text}
+                )
+            result = await graph.ainvoke(Command(resume=decisions), config=config)
+            snapshot = await graph.aget_state(config)
 
         async with async_session() as session:
             session.add(
@@ -73,20 +97,13 @@ def tailor(job_id: str) -> None:
                     id=thread_id,
                     job_id=job_id,
                     status="completed",
-                    trace_id=thread_id,  # ponytail: real Langfuse tracing lands with M4
+                    trace_id=thread_id,  # ponytail: real Langfuse tracing is future polish
                     cost_usd=cost_usd(callback.usage_metadata),
                 )
             )
             await session.commit()
 
-        verification_by_id = {v["bullet_id"]: v for v in result["verification"]}
-        for bullet in result["bullets"]:
-            verification = verification_by_id.get(bullet["id"])
-            passed = bool(verification and verification["passed"])
-            typer.echo(f"[{'PASS' if passed else 'FAIL'}] {bullet['text']}")
-            if verification and not passed:
-                for failure in verification["failures"]:
-                    typer.echo(f"    - {failure['check']}: {failure['detail']}")
+        typer.echo(f"Resume written to {result['pdf_path']}")
 
     asyncio.run(_run())
 

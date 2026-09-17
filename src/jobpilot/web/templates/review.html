@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Review · {{ run_id }}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+</head>
+<body {% if status != "completed" %}hx-get="/runs/{{ run_id }}/page" hx-trigger="every 2s" hx-select="body > *" hx-target="body" hx-swap="innerHTML"{% endif %}>
+  {% if status == "running" %}
+    <p>Tailoring in progress&hellip;</p>
+  {% elif status == "needs_review" %}
+    <h1>Review bullets</h1>
+    <form id="review-form" onsubmit="return submitReview(event)">
+      {% for bullet in review.bullets %}
+      {% set v = (review.verification | selectattr("bullet_id", "equalto", bullet.id) | first) %}
+      <fieldset data-bullet-id="{{ bullet.id }}">
+        <legend>{{ bullet.id }} &mdash; {{ "PASS" if v.passed else "FAIL" }}</legend>
+        <p>{{ bullet.text }}</p>
+        {% if not v.passed %}
+          <ul>{% for f in v.failures %}<li>{{ f.check }}: {{ f.detail }}</li>{% endfor %}</ul>
+        {% endif %}
+        <label><input type="radio" name="action" value="accept" checked> Accept</label>
+        <label><input type="radio" name="action" value="edit"> Edit</label>
+        <label><input type="radio" name="action" value="reject"> Reject</label>
+        <input type="text" class="edited-text" placeholder="edited text">
+      </fieldset>
+      {% endfor %}
+      <button type="submit">Submit</button>
+    </form>
+    <script>
+      function submitReview(event) {
+        event.preventDefault();
+        const decisions = [...document.querySelectorAll("fieldset[data-bullet-id]")].map((fs) => {
+          const action = fs.querySelector("input[name=action]:checked").value;
+          const editedText = fs.querySelector(".edited-text").value;
+          return {
+            bullet_id: fs.dataset.bulletId,
+            action,
+            edited_text: action === "edit" ? editedText : null,
+          };
+        });
+        fetch("/runs/{{ run_id }}/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(decisions),
+        }).then(() => location.reload());
+        return false;
+      }
+    </script>
+  {% else %}
+    <p>Done. Resume saved to {{ pdf_path }}</p>
+  {% endif %}
+</body>
+</html>
