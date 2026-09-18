@@ -57,3 +57,12 @@ def test_gap_report_formats_uncovered_must_haves():
         )
     ]
     assert gap_report(reqs, FACTS) == ["Kubernetes: no evidence in profile"]
+
+
+def test_untagged_must_have_counts_as_a_gap():
+    # Prose requirements often parse with no skill tags; treating them as
+    # covered scored an unmet posting at 100%.
+    reqs = [Requirement(id="R1", kind="must_have", text="Active TS/SCI clearance", source_quote="")]
+    score, gaps = coverage(reqs, FACTS)
+    assert score == 0.0
+    assert gaps == ["Active TS/SCI clearance"]

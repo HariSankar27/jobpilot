@@ -146,3 +146,16 @@ async def test_edit_that_now_passes_proceeds_to_render():
     assert not snapshot.interrupts
     rendered = Path(result["pdf_path"]).read_text()
     assert "Led a team of 3 engineers well" in rendered
+
+
+async def test_review_decision_for_an_unknown_bullet_is_ignored_not_fatal():
+    graph, config, _ = await _run_to_first_interrupt()
+    decisions = [
+        {"bullet_id": "B1", "action": "accept", "edited_text": None},
+        {"bullet_id": "B2", "action": "reject", "edited_text": None},
+        {"bullet_id": "GHOST", "action": "edit", "edited_text": "never existed"},
+    ]
+    result = await graph.ainvoke(Command(resume=decisions), config=config)
+    snapshot = await graph.aget_state(config)
+    assert not snapshot.interrupts
+    assert "Led a team of 3 engineers" in Path(result["pdf_path"]).read_text()

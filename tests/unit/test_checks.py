@@ -79,3 +79,11 @@ def test_unknown_fact_id_short_circuits_other_checks():
     failures = deterministic_checks(bullet, {"F001": FACT})
     assert len(failures) == 1
     assert failures[0].check == "unknown_fact_id"
+
+
+def test_understated_number_is_caught_not_matched_as_substring():
+    # "5" is a substring of "50" - a substring test would let this through.
+    fact = Fact(id="F9", kind="achievement", text="Led a team of 50 engineers", metrics=["50"])
+    bullet = _bullet("Led a team of 5 engineers", evidence_ids=["F9"])
+    failures = deterministic_checks(bullet, {"F9": fact})
+    assert [f.detail for f in failures if f.check == "unsupported_number"] == ["5"]

@@ -18,7 +18,10 @@ def transition(current: str, new: str) -> str:
 def coverage(reqs: list[Requirement], facts: list[Fact]) -> tuple[float, list[str]]:
     have = {normalize_skill(s) for f in facts for s in f.skills}
     must = [r for r in reqs if r.kind == "must_have"]
-    gaps = [r.text for r in must if r.skills and not {normalize_skill(s) for s in r.skills} & have]
+    # A must-have with no skill tags counts as a gap, not as covered. Treating
+    # it as covered scored a posting the candidate meets none of at 100%, since
+    # prose requirements ("10 years managing a SOC team") often parse with no tags.
+    gaps = [r.text for r in must if not {normalize_skill(s) for s in r.skills} & have]
     return 1 - len(gaps) / max(len(must), 1), gaps
 
 

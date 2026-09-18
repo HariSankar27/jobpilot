@@ -101,9 +101,12 @@ async def apply_review(state: TailorState) -> dict:
     verification_by_id = {v["bullet_id"]: v for v in state["verification"]}
 
     for decision in state["review"]:
-        if decision["action"] != "edit":
-            continue
         bullet_id = decision["bullet_id"]
+        # POST /runs/{id}/review is a trust boundary: a stale or malformed
+        # decision can name a bullet this run never had. Skip it rather than
+        # crashing the graph mid-resume.
+        if decision["action"] != "edit" or bullet_id not in bullets_by_id:
+            continue
         edited = Bullet(**{**bullets_by_id[bullet_id], "text": decision["edited_text"]})
         bullets_by_id[bullet_id] = edited.model_dump()
         verification_by_id[bullet_id] = (await verify_bullet(edited, facts)).model_dump()
@@ -117,7 +120,9 @@ async def apply_review(state: TailorState) -> dict:
 def route_after_review(state: TailorState) -> str:
     verification_by_id = {v["bullet_id"]: v for v in state["verification"]}
     edited_ids = [d["bullet_id"] for d in state["review"] if d["action"] == "edit"]
-    still_failing = any(not verification_by_id[i]["passed"] for i in edited_ids)
+    still_failing = any(
+        not verification_by_id[i]["passed"] for i in edited_ids if i in verification_by_id
+    )
     return "human_review" if still_failing else "render_pdf"
 
 
