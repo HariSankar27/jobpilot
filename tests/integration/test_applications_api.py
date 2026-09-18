@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -11,6 +13,11 @@ pytestmark = pytest.mark.integration
 
 
 async def _seed_application() -> str:
+    # Unique per call: these tests share one database, so fixed ids collide
+    # between tests and across re-runs.
+    suffix = uuid.uuid4().hex[:8]
+    run_id = f"run-apps-{suffix}"
+
     async with async_session() as session:
         job, _ = await upsert_job(
             session,
@@ -19,13 +26,14 @@ async def _seed_application() -> str:
                 company="Acme",
                 title="Eng",
                 description_text="text",
-                content_hash="hash-apps-test",
+                content_hash=f"hash-apps-{suffix}",
             ),
         )
-        session.add(
-            TailorRunRow(id="run-apps-test", job_id=job.id, status="completed", trace_id="t")
-        )
-        version = await create_resume_version(session, "run-apps-test", "var/resumes/x.pdf")
+        session.add(TailorRunRow(id=run_id, job_id=job.id, status="completed", trace_id="t"))
+        # resume_versions.run_id references tailor_runs, so the run has to exist
+        # before the dependent row is inserted.
+        await session.flush()
+        version = await create_resume_version(session, run_id, "var/resumes/x.pdf")
         await session.commit()
 
     transport = ASGITransport(app=app)
