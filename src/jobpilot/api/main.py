@@ -16,6 +16,10 @@ from .routes_tailor import router as tailor_router
 async def lifespan(app: FastAPI):
     # the checkpointer takes a plain postgresql:// URL, not SQLAlchemy's postgresql+psycopg://
     conn = settings.database_url.replace("postgresql+psycopg://", "postgresql://")
+    # Without connect_timeout, startup hangs indefinitely at "Waiting for
+    # application startup" when Postgres is down, instead of saying so.
+    separator = "&" if "?" in conn else "?"
+    conn = f"{conn}{separator}connect_timeout={settings.db_connect_timeout_s}"
     async with AsyncPostgresSaver.from_conn_string(conn) as checkpointer:
         await checkpointer.setup()
         app.state.graph = build_graph(checkpointer)

@@ -4,7 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from ..settings import settings
 
-engine = create_async_engine(settings.database_url)
+# connect_timeout: without it, `make dev` hangs forever at "Waiting for
+# application startup" when Postgres isn't up, with no error to diagnose.
+engine = create_async_engine(
+    settings.database_url, connect_args={"connect_timeout": settings.db_connect_timeout_s}
+)
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
 
